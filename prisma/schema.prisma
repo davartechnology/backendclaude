@@ -1,0 +1,558 @@
+// Prisma Schema - Application TikTok-like avec système de rémunération
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// UTILISATEURS
+// ============================================
+
+model User {
+  id              String @id @default(uuid())
+  username        String @unique
+  email           String @unique
+  passwordHash    String
+
+  // Profile
+  bio             String? @db.Text
+  avatarUrl       String?
+  coverUrl        String?
+
+  // Status
+  isPremium       Boolean @default(false)
+  isVerified      Boolean @default(false)
+  isBanned        Boolean @default(false)
+
+  // Stats
+  followersCount  Int @default(0)
+  followingCount  Int @default(0)
+  likesCount      Int @default(0)
+  videosCount     Int @default(0)
+
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastLoginAt     DateTime?
+
+  // Relations
+  videos          Video[]
+  likes           Like[]
+  favorites       Favorite[]
+  comments        Comment[]
+  followers       Follow[]          @relation("UserFollowers")
+  following       Follow[]          @relation("UserFollowing")
+  sentGifts       Gift[]            @relation("GiftSender")
+  receivedGifts   Gift[]            @relation("GiftReceiver")
+  liveStreams     LiveStream[]
+  balance         UserBalance?
+  dailySets       DailySets[]
+  distributions   SetDistribution[]
+  withdrawals     WithdrawalRequest[]
+  boostCampaigns  BoostCampaign[]
+  activityLogs    ActivityLog[]
+  notifications   Notification[]
+
+  @@index([email])
+  @@index([username])
+  @@index([createdAt])
+}
+
+// ============================================
+// BALANCE UTILISATEUR (2 types)
+// ============================================
+
+model UserBalance {
+  id                  String @id @default(uuid())
+  userId              String @unique
+
+  // Balance Disponible (retirable)
+  availableBalance    Decimal @default(0) // CORRIGÉ: Utilise Decimal
+  // Balance Gifts (non-retirable, seulement pour envoyer en live)
+  giftBalance         Decimal @default(0) // CORRIGÉ: Utilise Decimal
+  // Balance en attente de distribution
+  pendingBalance      Decimal @default(0) // CORRIGÉ: Utilise Decimal
+
+  // Stats
+  lifetimeEarnings    Decimal @default(0) // CORRIGÉ: Utilise Decimal
+  totalWithdrawn      Decimal @default(0) // CORRIGÉ: Utilise Decimal
+
+  // Timestamps
+  lastWithdrawal      DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================
+// VIDÉOS
+// (Pas de changement)
+// ============================================
+
+model Video {
+  id              String @id @default(uuid())
+  userId          String
+
+  // URLs
+  videoUrl        String
+  thumbnailUrl    String
+
+  // Metadata
+  title           String? @db.VarChar(150)
+  description     String? @db.Text
+  duration        Int // en secondes
+
+  // Stats
+  views           Int @default(0)
+  likesCount      Int @default(0)
+  commentsCount   Int @default(0)
+  sharesCount     Int @default(0)
+
+  // Boost
+  isBoosted       Boolean @default(false)
+
+  // Status
+  isPublic        Boolean @default(true)
+  isDeleted       Boolean @default(false)
+
+  // Son
+  soundId         String?
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sound           Sound?         @relation(fields: [soundId], references: [id])
+  likes           Like[]
+  favorites       Favorite[]
+  comments        Comment[]
+  hashtags        HashtagOnVideo[]
+  boostCampaign   BoostCampaign?
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([views])
+  @@index([isBoosted])
+}
+
+// ============================================
+// INTERACTIONS
+// (Pas de changement)
+// ============================================
+
+model Like {
+  userId          String
+  videoId         String
+  createdAt       DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([videoId])
+  @@index([createdAt])
+}
+
+model Favorite {
+  userId          String
+  videoId         String
+  createdAt       DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([userId])
+  @@index([videoId])
+  @@index([createdAt])
+}
+
+model Comment {
+  id              String @id @default(uuid())
+  userId          String
+  videoId         String
+  text            String @db.Text
+
+  // Nested comments
+  parentId        String?
+
+  // Stats
+  likesCount      Int @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video           Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  parent          Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies         Comment[] @relation("CommentReplies")
+
+  @@index([videoId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Follow {
+  followerId      String
+  followingId     String
+  createdAt       DateTime @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@index([createdAt])
+}
+
+// ============================================
+// HASHTAGS & SONS
+// (Pas de changement)
+// ============================================
+
+model Hashtag {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  videoCount      Int      @default(0)
+  viewsCount      Int      @default(0)
+  isTrending      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  videos HashtagOnVideo[]
+
+  @@index([name])
+  @@index([isTrending])
+}
+
+model HashtagOnVideo {
+  videoId         String
+  hashtagId       String
+
+  video   Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@id([videoId, hashtagId])
+}
+
+model Sound {
+  id              String   @id @default(uuid())
+  name            String
+  artist          String?
+  audioUrl        String
+  duration        Int // en secondes
+  useCount        Int      @default(0)
+  isTrending      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  videos Video[]
+
+  @@index([name])
+  @@index([isTrending])
+}
+
+// ============================================
+// LIVE STREAMING
+// (Pas de changement)
+// ============================================
+
+model LiveStream {
+  id              String @id @default(uuid())
+  userId          String
+  agoraChannelId  String @unique
+
+  title           String
+  thumbnailUrl    String?
+
+  // Status
+  isActive        Boolean @default(true)
+
+  // Stats
+  viewerCount     Int @default(0)
+  peakViewers     Int @default(0)
+  totalViews      Int @default(0)
+
+  // Timestamps
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+
+  user  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gifts Gift[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([startedAt])
+}
+
+// ============================================
+// GIFTS (Live)
+// ============================================
+
+model Gift {
+  id              String  @id @default(uuid())
+  senderId        String
+  receiverId      String
+  liveStreamId    String?
+
+  type            String
+  value           Decimal // CORRIGÉ: Utilise Decimal
+  isFree          Boolean @default(false)
+
+  createdAt       DateTime @default(now())
+
+  sender      User       @relation("GiftSender", fields: [senderId], references: [id])
+  receiver    User       @relation("GiftReceiver", fields: [receiverId], references: [id])
+  liveStream  LiveStream? @relation(fields: [liveStreamId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([liveStreamId])
+  @@index([createdAt])
+}
+
+// ============================================
+// SYSTÈME SETS (Invisible pour users)
+// ============================================
+
+model DailySets {
+  id                  String   @id @default(uuid())
+  userId              String
+  date                DateTime @db.Date
+
+  // Sets par action (maintenus en Decimal pour la précision des calculs)
+  likeSets            Decimal @default(0)
+  shareSets           Decimal @default(0)
+  commentSets         Decimal @default(0)
+  videoSets           Decimal @default(0)
+  activeTimeSets      Decimal @default(0)
+  viewSets            Decimal @default(0)
+  receiveLikeSets     Decimal @default(0)
+  receiveCommentSets  Decimal @default(0)
+  followerSets        Decimal @default(0)
+  giftSets            Decimal @default(0)
+  liveStreamSets      Decimal @default(0)
+  watchLiveSets       Decimal @default(0)
+
+  totalSets Decimal @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([userId])
+}
+
+// ============================================
+// DISTRIBUTION QUOTIDIENNE (60% pub in-feed)
+// ============================================
+
+model DailyRevenuePool {
+  id                  String   @id @default(uuid())
+  date                DateTime @unique @db.Date
+
+  // Revenue
+  inFeedAdRevenue     Decimal @default(0) // CORRIGÉ: Utilise Decimal
+  distributionPool    Decimal @default(0) // CORRIGÉ: Utilise Decimal
+
+  // Calculs
+  totalSets           Decimal @default(0) // CORRIGÉ: Utilise Decimal
+  setValueInDollars   Decimal @default(0) // CORRIGÉ: Utilise Decimal
+
+  // Status
+  isDistributed       Boolean   @default(false)
+  distributedAt       DateTime?
+
+  distributions SetDistribution[]
+
+  @@index([date])
+  @@index([isDistributed])
+}
+
+model SetDistribution {
+  id                  String   @id @default(uuid())
+  userId              String
+  poolId              String
+  date                DateTime @db.Date
+
+  totalSets           Decimal
+  amountEarned        Decimal // CORRIGÉ: Utilise Decimal
+
+  status              String    @default("pending") // pending, credited
+  creditedAt          DateTime?
+
+  user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pool DailyRevenuePool @relation(fields: [poolId], references: [id])
+
+  @@unique([userId, poolId])
+  @@index([userId])
+  @@index([date])
+}
+
+// ============================================
+// RETRAITS
+// ============================================
+
+model WithdrawalRequest {
+  id              String @id @default(uuid())
+  userId          String
+
+  amount          Decimal // CORRIGÉ: Utilise Decimal
+  method          String // paypal, mobile, bank, western_union
+
+  // Détails de paiement selon méthode
+  paypalEmail     String?
+  phoneNumber     String?
+  bankDetails     Json? // IBAN, SWIFT, nom banque, etc.
+  westernUnionDetails Json?
+
+  // Status
+  status          String @default("pending") // pending, processing, completed, rejected
+
+  // Frais
+  fee             Decimal @default(0) // CORRIGÉ: Utilise Decimal
+  netAmount       Decimal // CORRIGÉ: Utilise Decimal
+
+  // Timestamps
+  requestedAt     DateTime  @default(now())
+  processedAt     DateTime?
+  completedAt     DateTime?
+
+  // Admin
+  rejectionReason String?
+  transactionId   String? // ID transaction externe (PayPal, Stripe, etc.)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+// ============================================
+// BOOST VIDÉOS
+// ============================================
+
+model BoostCampaign {
+  id              String @id @default(uuid())
+  videoId         String @unique
+  userId          String
+
+  package         String // mini, standard, pro, viral, mega
+  price           Decimal // CORRIGÉ: Utilise Decimal
+
+  viewsPromised   Int
+  viewsDelivered  Int @default(0)
+
+  status          String @default("active") // active, completed, paused, cancelled
+
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  video           Video           @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id])
+  impressions     BoostImpression[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model BoostImpression {
+  id              String   @id @default(uuid())
+  campaignId      String
+  userId          String
+  videoId         String
+  viewedAt        DateTime @default(now())
+  duration        Int // secondes regardées
+  engaged         Boolean  @default(false) // liked, commented, shared
+
+  campaign BoostCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([viewedAt])
+}
+
+// ============================================
+// TRACKING ACTIVITÉ (Pour calcul sets)
+// ============================================
+
+model ActivityLog {
+  id              String   @id @default(uuid())
+  userId          String
+  actionType      String // like, share, comment, video_upload, view, etc.
+  targetId        String? // ID vidéo/commentaire concerné
+  setsEarned      Decimal // CORRIGÉ: Utilise Decimal
+  timestamp       DateTime @default(now())
+
+  // Metadata
+  metadata Json? // Infos supplémentaires si nécessaire
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([actionType])
+}
+
+// ============================================
+// NOTIFICATIONS
+// (Pas de changement)
+// ============================================
+
+model Notification {
+  id              String @id @default(uuid())
+  userId          String
+
+  type            String // like, comment, follow, gift, earnings, etc.
+  title           String
+  message         String @db.Text
+  data            Json? // Données supplémentaires
+
+  isRead          Boolean @default(false)
+
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ============================================
+// ANALYTICS (Pub, Revenue)
+// ============================================
+
+model AdView {
+  id              String   @id @default(uuid())
+  userId          String
+  adType          String // rewarded, in-feed
+  rewardAmount    Decimal? // CORRIGÉ: Utilise Decimal
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([adType])
+  @@index([createdAt])
+}
+
+model Transaction {
+  id              String   @id @default(uuid())
+  userId          String
+  type            String // purchase, payout, boost, gift_purchase, premium
+  amount          Decimal // CORRIGÉ: Utilise Decimal
+  stripePaymentId String?
+  status          String   @default("pending") // pending, completed, failed
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
