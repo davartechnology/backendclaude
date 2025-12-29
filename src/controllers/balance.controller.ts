@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { DistributionService } from '../services/distribution.service';
 import { Prisma } from '@prisma/client';
 

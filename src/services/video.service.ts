@@ -1,4 +1,4 @@
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { v2 as cloudinary } from 'cloudinary';
 
 // Configuration Cloudinary
@@ -12,7 +12,9 @@ interface CreateVideoData {
   userId: string;
   title?: string;
   description?: string;
-  videoFile: Express.Multer.File;
+  videoUrl: string;
+  thumbnailUrl: string;
+  duration: number;
   hashtags?: string[];
   soundId?: string;
 }
@@ -55,12 +57,9 @@ export class VideoService {
 
   // Créer une vidéo
   static async createVideo(data: CreateVideoData) {
-    const { userId, title, description, videoFile, hashtags, soundId } = data;
+    const { userId, title, description, videoUrl, thumbnailUrl, duration, hashtags, soundId } = data;
 
-    // Upload vers Cloudinary
-    const { videoUrl, thumbnailUrl, duration } = await this.uploadToCloudinary(videoFile);
-
-    // Créer la vidéo dans DB
+    // Créer la vidéo dans DB avec les URLs fournies
     const video = await prisma.video.create({
       data: {
         userId,

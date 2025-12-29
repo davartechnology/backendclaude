@@ -28,7 +28,7 @@ router.post('/:id/view', VideoController.incrementView);
 router.get('/:id/comments', VideoController.getComments);
 
 // Routes protégées (auth requise)
-router.post('/', authMiddleware, upload.single('video'), VideoController.uploadVideo);
+router.post('/', authMiddleware, upload.none(), VideoController.uploadVideo);
 router.delete('/:id', authMiddleware, VideoController.deleteVideo);
 router.post('/:id/like', authMiddleware, VideoController.likeVideo);
 router.delete('/:id/like', authMiddleware, VideoController.unlikeVideo);

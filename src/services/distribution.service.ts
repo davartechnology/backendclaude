@@ -1,4 +1,4 @@
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 // 1. Importez la classe Decimal de Prisma pour les calculs précis
 import { Prisma } from '@prisma/client';
 const Decimal = Prisma.Decimal;

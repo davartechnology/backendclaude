@@ -39,6 +39,7 @@ export class AuthController {
 
       const result = await AuthService.signup({ username, email, password });
 
+      console.log('✅ User created successfully:', result.user.id);
       return res.status(201).json({
         message: 'User created successfully',
         ...result
@@ -61,8 +62,12 @@ export class AuthController {
     try {
       const { email, password } = req.body;
 
+      console.log('🔐 LOGIN REQUEST RECEIVED');
+      console.log('Email:', email, 'Password:', password ? '***' : 'missing');
+
       // Validation
       if (!email || !password) {
+        console.log('❌ Missing fields');
         return res.status(400).json({
           error: 'Missing required fields',
           required: ['email', 'password']
@@ -71,17 +76,19 @@ export class AuthController {
 
       const result = await AuthService.login({ email, password });
 
+      console.log('✅ Login successful for:', email);
       return res.status(200).json({
         message: 'Login successful',
         ...result
       });
     } catch (error) {
       if (error instanceof Error) {
+        console.log('❌ Login error:', error.message);
         if (error.message.includes('Invalid credentials') || error.message.includes('banned')) {
           return res.status(401).json({ error: error.message });
         }
       }
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       return res.status(500).json({
         error: 'Login failed'
       });

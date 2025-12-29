@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 
 interface SignupData {
   username: string;
@@ -122,6 +122,8 @@ export class AuthService {
   static async login(data: LoginData) {
     const { email, password } = data;
 
+    console.log('🔓 LOGIN SERVICE - Email:', email);
+
     // Trouver l'utilisateur
     const user = await prisma.user.findUnique({
       where: { email },
@@ -131,19 +133,29 @@ export class AuthService {
     });
 
     if (!user) {
+      console.log('❌ User not found:', email);
       throw new Error('Invalid credentials');
     }
 
+    console.log('✅ User found:', user.id, user.username);
+
     // Vérifier si banni
     if (user.isBanned) {
+      console.log('🚫 User is banned');
       throw new Error('Account is banned');
     }
 
     // Vérifier le mot de passe
+    console.log('🔐 Comparing passwords...');
     const isPasswordValid = await this.comparePassword(password, user.passwordHash);
+    console.log('Password valid:', isPasswordValid);
+    
     if (!isPasswordValid) {
+      console.log('❌ Password mismatch');
       throw new Error('Invalid credentials');
     }
+
+    console.log('✅ Password valid - generating tokens');
 
     // Mettre à jour lastLoginAt
     await prisma.user.update({

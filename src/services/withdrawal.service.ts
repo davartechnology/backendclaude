@@ -1,4 +1,4 @@
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { Prisma } from '@prisma/client';
 
 // Initialiser la classe Decimal

@@ -1,19 +1,20 @@
 import { Request, Response } from 'express';
 import { VideoService } from '../services/video.service';
 import { SetsService } from '../services/sets.service';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 
 export class VideoController {
   // POST /api/videos - Upload vidéo
   static async uploadVideo(req: Request, res: Response) {
     try {
+      console.log('📤 Video upload request body:', req.body);
+      console.log('📤 Video upload headers:', req.headers);
       const userId = req.userId!;
-      const { title, description, hashtags, soundId } = req.body;
-      const videoFile = req.file;
+      const { title, description, hashtags, soundId, videoUrl, thumbnailUrl, durationInSeconds } = req.body;
 
-      if (!videoFile) {
+      if (!videoUrl || !thumbnailUrl) {
         return res.status(400).json({
-          error: 'Video file is required'
+          error: 'Video URL and thumbnail URL are required'
         });
       }
 
@@ -31,7 +32,9 @@ export class VideoController {
         userId,
         title,
         description,
-        videoFile,
+        videoUrl,
+        thumbnailUrl,
+        duration: durationInSeconds || 0,
         hashtags: parsedHashtags,
         soundId
       });
@@ -41,7 +44,7 @@ export class VideoController {
 
       return res.status(201).json({
         message: 'Video uploaded successfully',
-        video
+        data: video
       });
     } catch (error) {
       console.error('Upload video error:', error);

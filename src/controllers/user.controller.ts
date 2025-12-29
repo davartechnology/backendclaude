@@ -155,6 +155,35 @@ export class UserController {
       });
     }
   }
-}
 
+  // GET /api/user/profile - Obtenir le profil de l'utilisateur actuel
+  static async getMe(req: Request, res: Response) {
+    try {
+      const userId = (req as any).userId;
+      
+      console.log('👤 GET PROFILE REQUEST');
+      console.log('Authorization header:', req.headers.authorization);
+      console.log('UserId from middleware:', userId);
 
+      if (!userId) {
+        console.log('❌ No userId in request');
+        return res.status(401).json({
+          error: 'Unauthorized'
+        });
+      }
+
+      const user = await UserService.getUserProfile(userId);
+      
+      console.log('✅ User found:', user.id);
+      return res.status(200).json({ user });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'User not found') {
+        console.log('❌ User not found in database');
+        return res.status(404).json({ error: 'User not found' });
+      }
+      console.error('❌ Get me error:', error);
+      return res.status(500).json({
+        error: 'Failed to get profile'
+      });
+    }
+  }}
